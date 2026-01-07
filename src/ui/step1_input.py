@@ -150,21 +150,25 @@ def render_example_gallery() -> Tuple[bool, str, str]:
     st.markdown("### 🎨 Example Gallery")
     st.markdown("Choose from pre-built examples to see the SDK generator in action:")
     
+    from pathlib import Path
+    
+    # Get the project root directory
+    current_file = Path(__file__)
+    project_root = current_file.parent.parent.parent
+    examples_dir = project_root / "examples"
+    
     examples = {
         "Stripe Payments API": {
             "description": "Payment processing API with charges, customers, and subscriptions",
-            "url": "https://stripe.com/docs/api",
-            "file": "stripe_example.txt"
+            "file": examples_dir / "stripe" / "stripe_api_docs.md"
         },
         "GitHub REST API": {
             "description": "Repository management, issues, pull requests, and more",
-            "url": "https://docs.github.com/en/rest",
-            "file": "github_example.txt"
+            "file": examples_dir / "github" / "github_api_docs.md"
         },
         "Twilio Messaging API": {
             "description": "SMS and messaging API for sending and receiving messages",
-            "url": "https://www.twilio.com/docs/sms/api",
-            "file": "twilio_example.txt"
+            "file": examples_dir / "twilio" / "twilio_api_docs.md"
         }
     }
     
@@ -184,10 +188,30 @@ def render_example_gallery() -> Tuple[bool, str, str]:
             load_button = st.button("📥 Load Example", type="primary", use_container_width=True)
         
         if load_button:
-            # For now, show a placeholder message
-            # In a real implementation, we'd load from examples/ directory
-            st.warning("🚧 Example gallery coming soon! For now, please use URL, file upload, or text paste.")
-            return False, "", ""
+            try:
+                # Load the example file
+                example_file = example['file']
+                
+                if example_file.exists():
+                    with open(example_file, 'r', encoding='utf-8') as f:
+                        documentation_text = f.read()
+                    
+                    cleaned_text = sanitize_for_llm(documentation_text)
+                    
+                    st.success(f"✅ Loaded {selected_example} example!")
+                    
+                    # Show preview
+                    with st.expander("📖 Preview (first 500 characters)"):
+                        st.text(cleaned_text[:500] + "...")
+                    
+                    return True, cleaned_text, f"Example: {selected_example}"
+                else:
+                    st.error(f"❌ Example file not found: {example_file}")
+                    return False, "", ""
+                    
+            except Exception as e:
+                st.error(f"❌ Error loading example: {str(e)}")
+                return False, "", ""
     
     return False, "", ""
 
