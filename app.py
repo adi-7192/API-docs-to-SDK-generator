@@ -143,10 +143,14 @@ def main():
     if st.session_state.current_step == 1:
         has_input, documentation_text, input_source = render_step1_input_selection()
         
+        # Update session state if new input is provided
         if has_input:
             st.session_state.documentation_text = documentation_text
             st.session_state.input_source = input_source
-            
+        
+        # Show Next button if we have documentation (either new or from session)
+        if st.session_state.documentation_text:
+            st.markdown("---")
             col1, col2, col3 = st.columns([1, 1, 3])
             with col2:
                 if st.button("➡️ Next: Configure LLM", type="primary", use_container_width=True):
