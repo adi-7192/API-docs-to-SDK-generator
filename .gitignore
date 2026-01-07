@@ -30,7 +30,9 @@ env.bak/
 venv.bak/
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
+.streamlit/config.toml
+!.streamlit/*.example
 
 # Generated SDKs
 *.zip
