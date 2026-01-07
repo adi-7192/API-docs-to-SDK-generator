@@ -51,37 +51,74 @@ def render_step1_input_selection() -> Tuple[bool, str, str]:
 
 def render_url_input() -> Tuple[bool, str, str]:
     """Render URL input section."""
-    st.markdown("### 🔗 Fetch from URL")
-    st.markdown("Enter the URL of the API documentation page:")
+    st.markdown("### 🔗 Fetch from URLs")
+    st.markdown("Enter one or more URLs to fetch API documentation from multiple pages:")
     
-    url = st.text_input(
-        "Documentation URL",
-        placeholder="https://docs.example.com/api",
-        help="Enter the full URL including https://"
+    # Text area for multiple URLs
+    urls_text = st.text_area(
+        "Documentation URLs (one per line)",
+        placeholder="https://docs.example.com/api/authentication\nhttps://docs.example.com/api/users\nhttps://docs.example.com/api/payments",
+        help="Enter multiple URLs, one per line. All pages will be fetched and combined.",
+        height=120
     )
     
     col1, col2 = st.columns([1, 4])
     with col1:
-        fetch_button = st.button("🚀 Fetch", type="primary", use_container_width=True)
+        fetch_button = st.button("🚀 Fetch All", type="primary", use_container_width=True)
     
-    if fetch_button and url:
-        with st.spinner("Fetching documentation..."):
+    if fetch_button and urls_text:
+        # Parse URLs (one per line)
+        urls = [url.strip() for url in urls_text.split('\n') if url.strip()]
+        
+        if not urls:
+            st.warning("⚠️ Please enter at least one URL")
+            return False, "", ""
+        
+        all_texts = []
+        successful_urls = []
+        
+        # Fetch all URLs
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for idx, url in enumerate(urls):
+            status_text.text(f"Fetching {idx + 1}/{len(urls)}: {url}")
+            progress_bar.progress((idx + 1) / len(urls))
+            
             success, content, message = fetch_url(url, timeout=10)
             
             if success:
                 text = extract_text_from_html(content)
-                cleaned_text = sanitize_for_llm(text)
-                
-                st.success(f"✅ {message}")
-                
-                # Show preview
-                with st.expander("📖 Preview (first 500 characters)"):
-                    st.text(cleaned_text[:500] + "...")
-                
-                return True, cleaned_text, f"URL: {url}"
+                all_texts.append(text)
+                successful_urls.append(url)
+                st.success(f"✅ {url}: {message}")
             else:
-                st.error(f"❌ {message}")
-                return False, "", ""
+                st.error(f"❌ {url}: {message}")
+        
+        progress_bar.empty()
+        status_text.empty()
+        
+        if all_texts:
+            # Combine all documents with clear separators
+            combined_text = "\n\n" + "="*80 + "\n\n".join([
+                f"=== URL: {url} ===\n\n{text}" 
+                for url, text in zip(successful_urls, all_texts)
+            ])
+            
+            cleaned_text = sanitize_for_llm(combined_text)
+            
+            # Show summary
+            st.info(f"📚 **Successfully fetched {len(all_texts)} page(s) out of {len(urls)}**")
+            
+            # Show preview
+            with st.expander("📖 Preview (first 500 characters of combined text)"):
+                st.text(cleaned_text[:500] + "...")
+            
+            url_list = ", ".join([url.split('//')[-1].split('/')[0] for url in successful_urls])
+            return True, cleaned_text, f"URLs: {url_list}"
+        else:
+            st.error("❌ Failed to fetch any URLs")
+            return False, "", ""
     
     return False, "", ""
 
