@@ -105,10 +105,8 @@ class GeminiProvider(BaseLLMProvider):
             # Parse JSON
             api_data = json.loads(response_text)
             
-            # Validate and fix common issues before creating APISpecification
-            if "base_url" in api_data and api_data["base_url"] == "unclear":
-                # Provide a default placeholder URL
-                api_data["base_url"] = "https://api.example.com/v1"
+            # Clean up the data before validation
+            api_data = self._cleanup_api_data(api_data)
             
             # Create APISpecification from JSON
             api_spec = APISpecification(**api_data)
@@ -126,6 +124,53 @@ class GeminiProvider(BaseLLMProvider):
                 return False, None, f"Data validation failed: {error_msg}. The LLM response may not match the expected format."
             else:
                 return False, None, f"Extraction failed: {str(e)}"
+    
+    def _cleanup_api_data(self, api_data: dict) -> dict:
+        """
+        Clean up API data to fix common LLM response issues.
+        
+        Args:
+            api_data: Raw API data from LLM
+            
+        Returns:
+            Cleaned API data
+        """
+        # Fix base_url if it's "unclear"
+        if "base_url" in api_data and api_data["base_url"] == "unclear":
+            api_data["base_url"] = "https://api.example.com/v1"
+        
+        # Fix endpoints
+        if "endpoints" in api_data:
+            for endpoint in api_data["endpoints"]:
+                # Fix request_body schema issues
+                if "request_body" in endpoint and endpoint["request_body"]:
+                    rb = endpoint["request_body"]
+                    
+                    # If type is "unclear", set to None (no request body)
+                    if rb.get("type") == "unclear":
+                        endpoint["request_body"] = None
+                    # If properties exist but type is not object, fix it
+                    elif rb.get("properties") and rb.get("type") != "object":
+                        rb["type"] = "object"
+                    # If type is set but properties is empty dict, remove properties
+                    elif rb.get("type") and rb.get("properties") == {}:
+                        rb.pop("properties", None)
+                
+                # Fix response_schema issues
+                if "response_schema" in endpoint and endpoint["response_schema"]:
+                    rs = endpoint["response_schema"]
+                    
+                    # If type is "unclear", default to object
+                    if rs.get("type") == "unclear":
+                        rs["type"] = "object"
+                    # If properties exist but type is not object, fix it
+                    elif rs.get("properties") and rs.get("type") != "object":
+                        rs["type"] = "object"
+                    # If type is set but properties is empty dict, remove properties
+                    elif rs.get("type") and rs.get("properties") == {}:
+                        rs.pop("properties", None)
+        
+        return api_data
     
     @retry(
         stop=stop_after_attempt(3),

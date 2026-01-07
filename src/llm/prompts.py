@@ -76,6 +76,9 @@ IMPORTANT RULES:
 - base_url is REQUIRED and must be a valid URL (e.g., https://api.example.com/v1)
 - If the base URL is not explicitly stated, infer it from the examples or use a placeholder like https://api.example.com
 - NEVER use "unclear" for base_url - always provide a valid URL
+- For request_body and response_schema, the "type" field must be one of: object, array, string, number, boolean
+- If a request body or response is not documented, omit the request_body or response_schema field entirely (don't use "unclear")
+- Only include "properties" field when type is "object"
 - Extract ALL endpoints mentioned
 - Provide detailed descriptions (minimum 10 characters)
 - Include example values where possible
