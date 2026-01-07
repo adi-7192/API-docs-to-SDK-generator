@@ -1,0 +1,28 @@
+# Core Framework
+streamlit>=1.30.0
+
+# Data Validation
+pydantic>=2.5.0
+
+# Template Engine
+jinja2>=3.1.0
+
+# LLM Integration
+openai>=1.6.0
+tenacity>=8.2.0
+
+# Document Processing
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+pypdf2>=3.0.0
+trafilatura>=1.6.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# UI Enhancements
+streamlit-code-editor>=0.1.0
+
+# Testing
+pytest>=7.4.0
+pytest-mock>=3.12.0

@@ -1,0 +1,37 @@
+{
+  "name": "{{ package_name }}",
+  "version": "{{ version }}",
+  "description": "TypeScript SDK for {{ api_name }}",
+  {% if author %}"author": "{{ author }}",{% endif %}
+  "license": "{{ license }}",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublish": "npm run build",
+    "example": "ts-node example.ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2"
+  },
+  "keywords": [
+    "{{ api_name | lower }}",
+    "api",
+    "sdk",
+    "typescript",
+    "client"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/{{ package_name }}.git"
+  }
+}
