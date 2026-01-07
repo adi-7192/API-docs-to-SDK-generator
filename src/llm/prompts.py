@@ -5,6 +5,11 @@ EXTRACTION_SYSTEM_PROMPT = """You are an expert API documentation parser. Your t
 
 You must be thorough and accurate. If information is unclear or missing, mark it as "unclear" rather than guessing.
 
+The documentation may come from multiple sources or files. Your job is to:
+- Combine all endpoints from all documents into a single comprehensive API specification
+- Use the most complete information available when there are duplicates
+- Maintain consistency in naming and structure across all endpoints
+
 Extract ALL endpoints mentioned in the documentation, along with their:
 - HTTP method (GET, POST, PUT, DELETE, PATCH)
 - Path (must start with /)
@@ -16,11 +21,12 @@ Extract ALL endpoints mentioned in the documentation, along with their:
 - Rate limiting information (if mentioned)
 
 Be especially careful to:
-1. Identify the correct base URL
+1. Identify the correct base URL (use the most specific one if multiple are mentioned)
 2. Determine the authentication method used
 3. Extract parameter types accurately (string, number, boolean, array, object)
 4. Note parameter locations (query, path, header, body)
-5. Provide example values where possible"""
+5. Provide example values where possible
+6. Merge information from multiple documents when they describe the same API"""
 
 # User prompt template for extraction
 EXTRACTION_USER_PROMPT_TEMPLATE = """Parse the following API documentation and extract structured information.

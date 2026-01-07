@@ -88,34 +88,53 @@ def render_url_input() -> Tuple[bool, str, str]:
 
 def render_file_upload() -> Tuple[bool, str, str]:
     """Render file upload section."""
-    st.markdown("### 📁 Upload Documentation File")
-    st.markdown("Upload a PDF, HTML, TXT, or Markdown file:")
+    st.markdown("### 📁 Upload Documentation Files")
+    st.markdown("Upload one or more PDF, HTML, TXT, or Markdown files:")
     
-    uploaded_file = st.file_uploader(
-        "Choose a file",
+    uploaded_files = st.file_uploader(
+        "Choose files",
         type=["pdf", "html", "htm", "txt", "md", "markdown"],
-        help="Maximum file size: 5 MB"
+        help="Maximum file size: 5 MB per file. You can upload multiple files to combine documentation.",
+        accept_multiple_files=True  # Enable multiple file upload
     )
     
-    if uploaded_file is not None:
-        file_bytes = uploaded_file.read()
+    if uploaded_files:
+        all_texts = []
+        file_names = []
         
-        with st.spinner("Processing file..."):
-            success, text, message = parse_file(file_bytes, uploaded_file.name)
+        with st.spinner(f"Processing {len(uploaded_files)} file(s)..."):
+            for uploaded_file in uploaded_files:
+                file_bytes = uploaded_file.read()
+                
+                success, text, message = parse_file(file_bytes, uploaded_file.name)
+                
+                if success:
+                    all_texts.append(text)
+                    file_names.append(uploaded_file.name)
+                    st.success(f"✅ {uploaded_file.name}: {message}")
+                else:
+                    st.error(f"❌ {uploaded_file.name}: {message}")
+        
+        if all_texts:
+            # Combine all documents with clear separators
+            combined_text = "\n\n" + "="*80 + "\n\n".join([
+                f"=== Document: {name} ===\n\n{text}" 
+                for name, text in zip(file_names, all_texts)
+            ])
             
-            if success:
-                cleaned_text = sanitize_for_llm(text)
-                
-                st.success(f"✅ {message}")
-                
-                # Show preview
-                with st.expander("📖 Preview (first 500 characters)"):
-                    st.text(cleaned_text[:500] + "...")
-                
-                return True, cleaned_text, f"File: {uploaded_file.name}"
-            else:
-                st.error(f"❌ {message}")
-                return False, "", ""
+            cleaned_text = sanitize_for_llm(combined_text)
+            
+            # Show summary
+            st.info(f"📚 **Combined {len(all_texts)} document(s)**")
+            
+            # Show preview
+            with st.expander("📖 Preview (first 500 characters of combined text)"):
+                st.text(cleaned_text[:500] + "...")
+            
+            file_list = ", ".join(file_names)
+            return True, cleaned_text, f"Files: {file_list}"
+        else:
+            return False, "", ""
     
     return False, "", ""
 
