@@ -2,7 +2,8 @@
 
 import json
 from typing import Tuple, Optional, Dict
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from .base_provider import BaseLLMProvider
@@ -17,7 +18,7 @@ from .prompts import (
 
 
 class GeminiProvider(BaseLLMProvider):
-    """Google Gemini LLM provider."""
+    """Google Gemini LLM provider using the new google-genai package."""
     
     def __init__(self, api_key: str, config: Optional[Dict] = None):
         """
@@ -30,16 +31,14 @@ class GeminiProvider(BaseLLMProvider):
         self.api_key = api_key
         self.config = config or {}
         
-        # Configure Gemini
-        genai.configure(api_key=api_key)
+        # Initialize the client
+        self.client = genai.Client(api_key=api_key)
         
-        # Use Gemini 1.5 Pro for best results
-        self.model = genai.GenerativeModel(
-            'gemini-1.5-pro',
-            generation_config=genai.GenerationConfig(
-                temperature=self.config.get('temperature', 0.2),
-                max_output_tokens=self.config.get('max_tokens', 4000),
-            )
+        # Model configuration
+        self.model_id = "gemini-2.0-flash-exp"  # Latest model
+        self.generation_config = types.GenerateContentConfig(
+            temperature=self.config.get('temperature', 0.2),
+            max_output_tokens=self.config.get('max_tokens', 8000),
         )
     
     def validate_api_key(self) -> Tuple[bool, str]:
@@ -51,7 +50,11 @@ class GeminiProvider(BaseLLMProvider):
         """
         try:
             # Try a simple generation to validate the key
-            response = self.model.generate_content("Hello")
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents="Hello",
+                config=types.GenerateContentConfig(max_output_tokens=10)
+            )
             return True, "API key is valid"
         except Exception as e:
             error_msg = str(e)
@@ -86,7 +89,11 @@ class GeminiProvider(BaseLLMProvider):
 {EXTRACTION_USER_PROMPT_TEMPLATE.format(documentation=documentation)}"""
             
             # Generate response
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=prompt,
+                config=self.generation_config
+            )
             response_text = response.text.strip()
             
             # Extract JSON from response (handle markdown code blocks)
@@ -98,6 +105,11 @@ class GeminiProvider(BaseLLMProvider):
             # Parse JSON
             api_data = json.loads(response_text)
             
+            # Validate and fix common issues before creating APISpecification
+            if "base_url" in api_data and api_data["base_url"] == "unclear":
+                # Provide a default placeholder URL
+                api_data["base_url"] = "https://api.example.com/v1"
+            
             # Create APISpecification from JSON
             api_spec = APISpecification(**api_data)
             
@@ -106,7 +118,14 @@ class GeminiProvider(BaseLLMProvider):
         except json.JSONDecodeError as e:
             return False, None, f"Failed to parse JSON response: {str(e)}"
         except Exception as e:
-            return False, None, f"Extraction failed: {str(e)}"
+            error_msg = str(e)
+            # Provide helpful error messages
+            if "base_url" in error_msg and "url_parsing" in error_msg:
+                return False, None, "Could not extract a valid base URL from the documentation. Please ensure the documentation includes the API's base URL (e.g., https://api.example.com/v1)"
+            elif "validation error" in error_msg.lower():
+                return False, None, f"Data validation failed: {error_msg}. The LLM response may not match the expected format."
+            else:
+                return False, None, f"Extraction failed: {str(e)}"
     
     @retry(
         stop=stop_after_attempt(3),
@@ -141,7 +160,11 @@ class GeminiProvider(BaseLLMProvider):
             )
             
             # Generate response
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=prompt,
+                config=self.generation_config
+            )
             method_code = response.text.strip()
             
             # Remove markdown code blocks if present
@@ -179,7 +202,11 @@ class GeminiProvider(BaseLLMProvider):
             )
             
             # Generate response
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=prompt,
+                config=self.generation_config
+            )
             types_code = response.text.strip()
             
             # Remove markdown code blocks if present
@@ -217,7 +244,11 @@ Endpoints: {len(api_spec.endpoints)}
 
 Please provide clear, concise markdown content with code examples."""
             
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=prompt,
+                config=self.generation_config
+            )
             return response.text.strip()
             
         except Exception:
@@ -233,15 +264,15 @@ Please provide clear, concise markdown content with code examples."""
         Returns:
             Estimated cost in USD
         """
-        # Gemini 1.5 Pro pricing (as of 2024):
-        # Input: $0.00125 per 1K characters (up to 128K)
-        # Output: $0.005 per 1K characters
+        # Gemini 2.0 Flash pricing (as of 2024):
+        # Input: $0.00001875 per 1K characters (up to 128K)
+        # Output: $0.000075 per 1K characters
         
         input_chars = len(documentation)
-        estimated_output_chars = min(input_chars, 4000)  # Max output tokens
+        estimated_output_chars = min(input_chars, 8000)  # Max output tokens
         
-        input_cost = (input_chars / 1000) * 0.00125
-        output_cost = (estimated_output_chars / 1000) * 0.005
+        input_cost = (input_chars / 1000) * 0.00001875
+        output_cost = (estimated_output_chars / 1000) * 0.000075
         
         # Multiply by ~3 for extraction + method generation + types
         total_cost = (input_cost + output_cost) * 3

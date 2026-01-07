@@ -28,7 +28,7 @@ EXTRACTION_USER_PROMPT_TEMPLATE = """Parse the following API documentation and e
 Return a JSON object with this exact structure:
 {{
   "api_name": "string (name of the API)",
-  "base_url": "string (base URL, e.g., https://api.example.com/v1)",
+  "base_url": "string (base URL, e.g., https://api.example.com/v1 - REQUIRED, must be a valid URL)",
   "auth_type": "string (one of: api_key, oauth2, bearer, basic, none)",
   "global_headers": {{
     "header_name": "header_value"
@@ -72,9 +72,11 @@ Documentation to parse:
 
 {documentation}
 
-Remember:
+IMPORTANT RULES:
+- base_url is REQUIRED and must be a valid URL (e.g., https://api.example.com/v1)
+- If the base URL is not explicitly stated, infer it from the examples or use a placeholder like https://api.example.com
+- NEVER use "unclear" for base_url - always provide a valid URL
 - Extract ALL endpoints mentioned
-- If information is unclear, use "unclear" as the value
 - Provide detailed descriptions (minimum 10 characters)
 - Include example values where possible
 - Be accurate with parameter types and locations"""
