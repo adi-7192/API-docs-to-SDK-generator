@@ -9,12 +9,10 @@ from .base_provider import BaseLLMProvider
 from ..models.api_spec import APISpecification
 from ..models.endpoint import Endpoint
 from .prompts import (
-    SYSTEM_PROMPT_API_EXTRACTION,
-    USER_PROMPT_API_EXTRACTION,
-    SYSTEM_PROMPT_ENDPOINT_METHOD,
-    USER_PROMPT_ENDPOINT_METHOD,
-    SYSTEM_PROMPT_TYPE_DEFINITIONS,
-    USER_PROMPT_TYPE_DEFINITIONS,
+    EXTRACTION_SYSTEM_PROMPT,
+    EXTRACTION_USER_PROMPT_TEMPLATE,
+    ENDPOINT_METHOD_PROMPT_TEMPLATE,
+    TYPE_DEFINITIONS_PROMPT_TEMPLATE,
 )
 
 
@@ -83,14 +81,9 @@ class GeminiProvider(BaseLLMProvider):
         """
         try:
             # Prepare prompt
-            prompt = f"""{SYSTEM_PROMPT_API_EXTRACTION}
+            prompt = f"""{EXTRACTION_SYSTEM_PROMPT}
 
-{USER_PROMPT_API_EXTRACTION}
-
-Documentation:
-{documentation}
-
-Please respond with ONLY the JSON object, no other text."""
+{EXTRACTION_USER_PROMPT_TEMPLATE.format(documentation=documentation)}"""
             
             # Generate response
             response = self.model.generate_content(prompt)
@@ -135,19 +128,17 @@ Please respond with ONLY the JSON object, no other text."""
             Tuple of (success, method_code, error_message)
         """
         try:
-            # Prepare prompt
-            prompt = f"""{SYSTEM_PROMPT_ENDPOINT_METHOD}
-
-{USER_PROMPT_ENDPOINT_METHOD}
-
-Endpoint Details:
-{endpoint.model_dump_json(indent=2)}
-
-API Context:
-- Base URL: {api_spec.base_url}
-- Auth Type: {api_spec.auth_type.value}
-
-Please respond with ONLY the TypeScript method code, no markdown formatting."""
+            # Prepare prompt using the template
+            prompt = ENDPOINT_METHOD_PROMPT_TEMPLATE.format(
+                base_url=api_spec.base_url,
+                auth_type=api_spec.auth_type.value,
+                path=endpoint.path,
+                method=endpoint.method.value,
+                description=endpoint.description,
+                parameters=endpoint.parameters,
+                request_body=endpoint.request_body,
+                response_schema=endpoint.response_schema
+            )
             
             # Generate response
             response = self.model.generate_content(prompt)
@@ -182,15 +173,10 @@ Please respond with ONLY the TypeScript method code, no markdown formatting."""
             Tuple of (success, types_code, error_message)
         """
         try:
-            # Prepare prompt
-            prompt = f"""{SYSTEM_PROMPT_TYPE_DEFINITIONS}
-
-{USER_PROMPT_TYPE_DEFINITIONS}
-
-API Specification:
-{api_spec.model_dump_json(indent=2)}
-
-Please respond with ONLY the TypeScript type definitions, no markdown formatting."""
+            # Prepare prompt using the template
+            prompt = TYPE_DEFINITIONS_PROMPT_TEMPLATE.format(
+                endpoints_json=api_spec.model_dump_json(indent=2)
+            )
             
             # Generate response
             response = self.model.generate_content(prompt)
