@@ -9,11 +9,13 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from .base_provider import BaseLLMProvider
 from ..models.api_spec import APISpecification
 from ..models.endpoint import Endpoint
+from ..models.documentation_analysis import DocumentationAnalysis
 from .prompts import (
     EXTRACTION_SYSTEM_PROMPT,
     EXTRACTION_USER_PROMPT_TEMPLATE,
     ENDPOINT_METHOD_PROMPT_TEMPLATE,
     TYPE_DEFINITIONS_PROMPT_TEMPLATE,
+    DOCUMENTATION_ANALYSIS_PROMPT,
 )
 
 
@@ -38,7 +40,7 @@ class GeminiProvider(BaseLLMProvider):
         self.model_id = "gemini-2.0-flash-exp"  # Latest model
         self.generation_config = types.GenerateContentConfig(
             temperature=self.config.get('temperature', 0.2),
-            max_output_tokens=self.config.get('max_tokens', 8000),
+            max_output_tokens=self.config.get('max_tokens', 16000),  # Increased from 8000 to handle large API specs
         )
     
     def validate_api_key(self) -> Tuple[bool, str]:
@@ -124,6 +126,61 @@ class GeminiProvider(BaseLLMProvider):
                 return False, None, f"Data validation failed: {error_msg}. The LLM response may not match the expected format."
             else:
                 return False, None, f"Extraction failed: {str(e)}"
+    
+    def analyze_documentation(
+        self,
+        documentation: str
+    ) -> Tuple[bool, Optional[DocumentationAnalysis], str]:
+        """
+        Analyze documentation structure using Gemini Flash (cheaper, faster).
+        
+        Args:
+            documentation: Raw documentation text
+            
+        Returns:
+            Tuple of (success, analysis_or_none, error_message)
+        """
+        try:
+            # Limit input to first 10K characters for cost efficiency
+            doc_sample = documentation[:10000]
+            
+            # Prepare prompt
+            prompt = f"""You are an API documentation analyzer.
+
+{DOCUMENTATION_ANALYSIS_PROMPT.format(documentation=doc_sample)}"""
+            
+            # Use smaller config for analysis
+            analysis_config = types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=2000,  # Smaller response needed
+            )
+            
+            # Generate response
+            response = self.client.models.generate_content(
+                model=self.model_id,  # Using flash model
+                contents=prompt,
+                config=analysis_config
+            )
+            response_text = response.text.strip()
+            
+            # Extract JSON from response (handle markdown code blocks)
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            # Parse JSON
+            analysis_data = json.loads(response_text)
+            
+            # Create DocumentationAnalysis object
+            analysis = DocumentationAnalysis(**analysis_data)
+            
+            return True, analysis, ""
+            
+        except json.JSONDecodeError as e:
+            return False, None, f"Failed to parse analysis response: {str(e)}"
+        except Exception as e:
+            return False, None, f"Analysis failed: {str(e)}"
     
     def _cleanup_api_data(self, api_data: dict) -> dict:
         """

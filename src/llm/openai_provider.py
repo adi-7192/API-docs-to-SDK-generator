@@ -2,7 +2,7 @@
 
 import json
 import openai
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -17,9 +17,11 @@ from .prompts import (
     ENDPOINT_METHOD_PROMPT_TEMPLATE,
     TYPE_DEFINITIONS_PROMPT_TEMPLATE,
     README_PROMPT_TEMPLATE,
+    DOCUMENTATION_ANALYSIS_PROMPT,
 )
 from ..models.api_spec import APISpecification
 from ..models.endpoint import Endpoint
+from ..models.documentation_analysis import DocumentationAnalysis
 
 
 class OpenAIProvider(BaseLLMProvider):
@@ -41,7 +43,7 @@ class OpenAIProvider(BaseLLMProvider):
         self.client = openai.OpenAI(api_key=api_key)
         self.model = self.config.get('model', 'gpt-4-turbo')
         self.temperature = self.config.get('temperature', 0.2)
-        self.max_tokens = self.config.get('max_tokens', 4000)
+        self.max_tokens = self.config.get('max_tokens', 16000)  # Increased from 4000 to handle large API specs
         self.timeout = self.config.get('timeout', 120)
     
     def validate_api_key(self) -> Tuple[bool, str]:
@@ -158,6 +160,59 @@ class OpenAIProvider(BaseLLMProvider):
             return False, None, f"Failed to parse LLM response as JSON: {str(e)}"
         except Exception as e:
             return False, None, f"Unexpected error during extraction: {str(e)}"
+    
+    def analyze_documentation(
+        self,
+        documentation: str
+    ) -> Tuple[bool, Optional[DocumentationAnalysis], str]:
+        """
+        Analyze documentation structure using GPT-4o-mini (cheaper, faster).
+        
+        Args:
+            documentation: Raw documentation text
+            
+        Returns:
+            Tuple of (success, analysis_or_none, error_message)
+        """
+        try:
+            # Limit input to first 10K characters for cost efficiency
+            doc_sample = documentation[:10000]
+            
+            # Prepare prompt
+            prompt = DOCUMENTATION_ANALYSIS_PROMPT.format(documentation=doc_sample)
+            
+            # Use gpt-4o-mini for cost efficiency (~10x cheaper than gpt-4-turbo)
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an API documentation analyzer."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3,
+                max_tokens=2000,  # Smaller response needed for analysis
+                timeout=30  # Faster timeout for analysis
+            )
+            
+            # Parse JSON response
+            analysis_data = json.loads(response.choices[0].message.content)
+            
+            # Create DocumentationAnalysis object
+            analysis = DocumentationAnalysis(**analysis_data)
+            
+            return True, analysis, ""
+            
+        except openai.AuthenticationError:
+            return False, None, "Authentication failed. Please check your API key."
+        except openai.RateLimitError:
+            return False, None, "Rate limit exceeded. Please wait and try again."
+        except openai.APITimeoutError:
+            return False, None, "Analysis timed out. Please try again."
+        except json.JSONDecodeError as e:
+            return False, None, f"Failed to parse analysis response: {str(e)}"
+        except Exception as e:
+            return False, None, f"Analysis failed: {str(e)}"
+
     
     def generate_endpoint_method(
         self,

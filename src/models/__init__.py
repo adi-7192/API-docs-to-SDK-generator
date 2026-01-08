@@ -5,6 +5,11 @@ from .parameter import Parameter, ParameterType, ParameterLocation
 from .endpoint import Endpoint, HTTPMethod
 from .api_spec import APISpecification, AuthType
 from .sdk_config import SDKConfig, RetryConfig, RateLimitConfig, License
+from .documentation_analysis import (
+    DocumentationAnalysis,
+    EndpointSummary,
+    NavigationDetection,
+)
 
 __all__ = [
     # Schema
@@ -25,4 +30,8 @@ __all__ = [
     "RetryConfig",
     "RateLimitConfig",
     "License",
+    # Documentation Analysis
+    "DocumentationAnalysis",
+    "EndpointSummary",
+    "NavigationDetection",
 ]

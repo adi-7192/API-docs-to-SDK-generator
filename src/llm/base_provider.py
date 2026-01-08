@@ -1,9 +1,10 @@
 """Base LLM provider interface."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from ..models.api_spec import APISpecification
 from ..models.endpoint import Endpoint
+from ..models.documentation_analysis import DocumentationAnalysis
 
 
 class BaseLLMProvider(ABC):
@@ -111,6 +112,22 @@ class BaseLLMProvider(ABC):
             
         Returns:
             Estimated cost in USD
+        """
+        pass
+    
+    @abstractmethod
+    def analyze_documentation(
+        self,
+        documentation: str
+    ) -> Tuple[bool, Optional[DocumentationAnalysis], str]:
+        """
+        Analyze documentation structure before extraction.
+        
+        Args:
+            documentation: Raw documentation text
+            
+        Returns:
+            Tuple of (success, analysis_or_none, error_message)
         """
         pass
     

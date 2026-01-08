@@ -6,6 +6,8 @@ from pathlib import Path
 # Import UI components
 from src.ui import (
     render_step1_input_selection,
+    render_documentation_analysis,
+    render_analysis_error,
     render_step2_llm_config,
     render_cost_estimation,
     render_step3_review_edit,
@@ -86,6 +88,12 @@ if 'file_structure' not in st.session_state:
 if 'zip_bytes' not in st.session_state:
     st.session_state.zip_bytes = None
 
+if 'documentation_analysis' not in st.session_state:
+    st.session_state.documentation_analysis = None
+
+if 'skip_analysis' not in st.session_state:
+    st.session_state.skip_analysis = False
+
 
 def render_progress_sidebar():
     """Render progress sidebar with step indicators."""
@@ -95,6 +103,7 @@ def render_progress_sidebar():
         
         steps = [
             ("1️⃣", "Input Selection"),
+            ("🔍", "Documentation Analysis"),
             ("2️⃣", "LLM Configuration"),
             ("3️⃣", "Review & Edit"),
             ("4️⃣", "SDK Configuration"),
@@ -153,8 +162,96 @@ def main():
             st.markdown("---")
             col1, col2, col3 = st.columns([1, 1, 3])
             with col2:
-                if st.button("➡️ Next: Configure LLM", type="primary", use_container_width=True):
-                    st.session_state.current_step = 2
+                if st.button("➡️ Next: Analyze Documentation", type="primary", use_container_width=True):
+                    st.session_state.current_step = 1.5
+                    st.rerun()
+    
+    # Step 1.5: Documentation Analysis
+    elif st.session_state.current_step == 1.5:
+        st.info(f"📄 **Input Source:** {st.session_state.input_source}")
+        
+        # Run analysis if not already done
+        if not st.session_state.documentation_analysis:
+            # Need to get LLM provider for analysis
+            # For now, we'll ask user to configure LLM first, then analyze
+            # OR we can use a default provider with user's key
+            
+            st.markdown("### 🔍 Analyzing Documentation Structure...")
+            st.markdown("To analyze your documentation, we need an LLM provider.")
+            
+            # Quick LLM selection for analysis
+            provider_choice = st.radio(
+                "Select LLM Provider for Analysis",
+                ["OpenAI (GPT-4o-mini)", "Google Gemini (Flash)"],
+                help="Analysis uses cheaper, faster models (~$0.005 per analysis)"
+            )
+            
+            api_key = st.text_input(
+                "API Key",
+                type="password",
+                help="Your API key (not stored, used only for this session)"
+            )
+            
+            if api_key:
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    if st.button("⬅️ Back", use_container_width=True):
+                        st.session_state.current_step = 1
+                        st.rerun()
+                
+                with col2:
+                    if st.button("🔍 Analyze", type="primary", use_container_width=True):
+                        # Create temporary provider for analysis
+                        with st.spinner("🔍 Analyzing documentation structure..."):
+                            try:
+                                if "OpenAI" in provider_choice:
+                                    from src.llm import OpenAIProvider
+                                    temp_provider = OpenAIProvider(api_key)
+                                else:
+                                    from src.llm import GeminiProvider
+                                    temp_provider = GeminiProvider(api_key)
+                                
+                                # Run analysis
+                                success, analysis, error = temp_provider.analyze_documentation(
+                                    st.session_state.documentation_text
+                                )
+                                
+                                if success:
+                                    st.session_state.documentation_analysis = analysis
+                                    # Store provider for later use
+                                    st.session_state.llm_provider = temp_provider
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ Analysis failed: {error}")
+                                    st.warning("⚠️ Proceeding without analysis...")
+                                    st.session_state.skip_analysis = True
+                                    st.session_state.current_step = 2
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
+        else:
+            # Display analysis results
+            should_proceed, action = render_documentation_analysis(
+                st.session_state.documentation_analysis
+            )
+            
+            if should_proceed:
+                if action == "continue":
+                    # Proceed to LLM configuration (or skip if provider already set)
+                    if st.session_state.llm_provider:
+                        st.session_state.current_step = 2
+                    else:
+                        st.session_state.current_step = 2
+                    st.rerun()
+                elif action == "add_more":
+                    # Go back to input selection
+                    st.session_state.documentation_analysis = None
+                    st.session_state.current_step = 1
+                    st.rerun()
+                elif action == "retry":
+                    # Clear analysis and retry
+                    st.session_state.documentation_analysis = None
                     st.rerun()
     
     # Step 2: LLM Configuration
@@ -172,7 +269,7 @@ def main():
             col1, col2, col3 = st.columns([1, 1, 3])
             with col1:
                 if st.button("⬅️ Back", use_container_width=True):
-                    st.session_state.current_step = 1
+                    st.session_state.current_step = 1.5
                     st.rerun()
             with col2:
                 if st.button("➡️ Next: Extract API Spec", type="primary", use_container_width=True):
@@ -184,6 +281,8 @@ def main():
                         
                         if success:
                             st.session_state.api_spec = api_spec
+                            # Show success message with endpoint count
+                            st.success(f"✅ Successfully extracted {len(api_spec.endpoints)} endpoint(s)!")
                             st.session_state.current_step = 3
                             st.rerun()
                         else:

@@ -166,6 +166,16 @@ def render_extraction_warnings(api_spec: APISpecification):
             "This might be correct, but please verify."
         )
     
+    # Check for suspiciously low endpoint count
+    # If we have very few endpoints, it might indicate incomplete extraction
+    if len(api_spec.endpoints) <= 2:
+        warnings.append(
+            f"⚠️ Only {len(api_spec.endpoints)} endpoint(s) were extracted. "
+            "If your API has more endpoints, the extraction may be incomplete. "
+            "Try re-running the extraction or check your documentation."
+        )
+
+    
     if warnings:
         st.markdown("---")
         st.markdown("### ⚠️ Extraction Warnings")

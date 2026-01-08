@@ -11,8 +11,10 @@
 
 ## ✨ Features
 
-- **🤖 AI-Powered Extraction** - Uses GPT-4-turbo to intelligently parse API documentation
+- **🔍 Smart Documentation Analysis** - Analyzes docs before extraction to detect setup guides vs API references
+- **🤖 Dual AI Support** - Choose between OpenAI (GPT-4-turbo) or Google Gemini for extraction
 - **📄 Multi-Format Support** - Accepts URLs, PDFs, HTML files, or plain text
+- **💡 Intelligent Guidance** - Recommends additional URLs when partial documentation detected
 - **✏️ Interactive Review** - Edit and refine extracted API specifications
 - **⚙️ Customizable SDKs** - Configure retry logic, rate limiting, and error handling
 - **🔒 Security-First** - Built-in security scanning and sensitive data redaction
@@ -25,7 +27,8 @@
 ### Prerequisites
 
 - Python 3.8 or higher
-- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- OpenAI API key ([Get one here](https://platform.openai.com/api-keys)) OR
+- Google Gemini API key ([Get one here](https://aistudio.google.com/app/apikey))
 
 ### Installation
 
@@ -51,13 +54,24 @@ The app will open in your browser at `http://localhost:8501`
 
 ## 🎬 How It Works
 
-### 5-Step Workflow
+### 6-Step Workflow
 
 1. **📄 Input** - Provide API documentation via URL, file upload, or text paste
-2. **🤖 Configure** - Enter your OpenAI API key and adjust settings
-3. **✏️ Review** - Verify and edit the extracted API specification
-4. **⚙️ Customize** - Configure SDK features and package metadata
-5. **📥 Download** - Get your complete TypeScript SDK as a ZIP file
+2. **🔍 Analysis** - AI analyzes documentation structure and provides guidance
+3. **🤖 Configure** - Choose LLM provider (OpenAI/Gemini) and enter API key
+4. **✏️ Review** - Verify and edit the extracted API specification
+5. **⚙️ Customize** - Configure SDK features and package metadata
+6. **📥 Download** - Get your complete TypeScript SDK as a ZIP file
+
+### 🔍 Smart Documentation Analysis
+
+Before extraction, the system analyzes your documentation to:
+- Detect if you provided setup guides vs actual API references
+- Count endpoints and identify missing sections
+- Suggest additional URLs for complete API coverage
+- Warn about partial documentation (e.g., only auth endpoints)
+
+**Example**: If you provide `docs.example.com/setup`, the analyzer will detect it's a guide with 0 endpoints and suggest `docs.example.com/reference` instead.
 
 ### Example
 
@@ -119,7 +133,7 @@ pytest tests/ --cov=src --cov-report=html
 
 - **Frontend**: Streamlit
 - **Backend**: Python 3.8+
-- **AI**: OpenAI GPT-4-turbo
+- **AI**: OpenAI GPT-4-turbo / Google Gemini 2.0 Flash
 - **Validation**: Pydantic
 - **Templates**: Jinja2
 - **Testing**: Pytest
@@ -157,6 +171,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - OpenAI for GPT-4-turbo API
+- Google for Gemini API
 - Streamlit for the amazing framework
 - The open-source community
 

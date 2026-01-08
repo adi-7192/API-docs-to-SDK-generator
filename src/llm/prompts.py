@@ -10,7 +10,9 @@ The documentation may come from multiple sources or files. Your job is to:
 - Use the most complete information available when there are duplicates
 - Maintain consistency in naming and structure across all endpoints
 
-Extract ALL endpoints mentioned in the documentation, along with their:
+⚠️ CRITICAL: Extract ALL endpoints mentioned in the documentation. Do not skip or summarize.
+
+For EACH endpoint, extract:
 - HTTP method (GET, POST, PUT, DELETE, PATCH)
 - Path (must start with /)
 - Description (detailed explanation of what the endpoint does)
@@ -21,15 +23,25 @@ Extract ALL endpoints mentioned in the documentation, along with their:
 - Rate limiting information (if mentioned)
 
 Be especially careful to:
-1. Identify the correct base URL (use the most specific one if multiple are mentioned)
-2. Determine the authentication method used
-3. Extract parameter types accurately (string, number, boolean, array, object)
-4. Note parameter locations (query, path, header, body)
-5. Provide example values where possible
-6. Merge information from multiple documents when they describe the same API"""
+1. Scan the ENTIRE documentation for ALL endpoints - do not stop early
+2. If multiple documents are provided, extract endpoints from EVERY document
+3. Identify the correct base URL (use the most specific one if multiple are mentioned)
+4. Determine the authentication method used
+5. Extract parameter types accurately (string, number, boolean, array, object)
+6. Note parameter locations (query, path, header, body)
+7. Provide example values where possible
+8. Merge information from multiple documents when they describe the same API
+9. Before finalizing, count the endpoints you found and verify you didn't miss any"""
 
 # User prompt template for extraction
 EXTRACTION_USER_PROMPT_TEMPLATE = """Parse the following API documentation and extract structured information.
+
+⚠️ CRITICAL INSTRUCTIONS:
+1. Read through the ENTIRE documentation carefully
+2. Extract EVERY SINGLE endpoint you find - do not skip any
+3. If multiple documents are provided (separated by === markers), extract endpoints from ALL of them
+4. Count the total number of endpoints as you go
+5. Before returning your response, verify you've included all endpoints
 
 Return a JSON object with this exact structure:
 {{
@@ -70,7 +82,8 @@ Return a JSON object with this exact structure:
   ],
   "metadata": {{
     "version": "string (optional)",
-    "description": "string (optional)"
+    "description": "string (optional)",
+    "total_endpoints_found": "number (total count of endpoints extracted)"
   }}
 }}
 
@@ -85,10 +98,11 @@ IMPORTANT RULES:
 - For request_body and response_schema, the "type" field must be one of: object, array, string, number, boolean
 - If a request body or response is not documented, omit the request_body or response_schema field entirely (don't use "unclear")
 - Only include "properties" field when type is "object"
-- Extract ALL endpoints mentioned
+- ⚠️ Extract ALL endpoints mentioned - this is critical for completeness
 - Provide detailed descriptions (minimum 10 characters)
 - Include example values where possible
-- Be accurate with parameter types and locations"""
+- Be accurate with parameter types and locations
+- Add total_endpoints_found to metadata so we can verify completeness"""
 
 # Prompt for generating endpoint methods
 ENDPOINT_METHOD_PROMPT_TEMPLATE = """Generate a TypeScript method for the following API endpoint.
@@ -290,3 +304,86 @@ FEW_SHOT_EXAMPLES = [
         }
     }
 ]
+
+# Documentation analysis prompt
+DOCUMENTATION_ANALYSIS_PROMPT = """You are an API documentation analyzer. Your job is to help users understand what they provided and guide them to complete API specifications.
+
+Analyze this documentation and provide a structured report:
+
+{documentation}
+
+Return a JSON object with this exact structure:
+{{
+  "document_type": "api_reference" | "guide" | "setup_instructions" | "mixed",
+  "endpoints_found": {{
+    "count": <number>,
+    "list": [
+      {{"method": "POST", "path": "/auth/token", "description": "Request access token"}}
+    ]
+  }},
+  "is_complete_api": true/false,
+  "api_name": "<detected API name or null>",
+  "base_url": "<detected base URL or null>",
+  "navigation_detected": {{
+    "has_more_endpoints": true/false,
+    "other_sections": ["Payments", "Workflows", "Transfers"],
+    "reference_urls": [
+      "https://docs.example.com/reference/payments",
+      "https://docs.example.com/reference/workflows"
+    ]
+  }},
+  "user_message": "<clear explanation of findings>",
+  "recommendations": [
+    "<actionable suggestions for user>"
+  ]
+}}
+
+Analysis Guidelines:
+
+1. **Document Type Classification**:
+   - "api_reference": Contains HTTP methods (GET, POST), endpoint paths (/resource/id), request/response examples
+   - "guide": Explains concepts, best practices, tutorials - no actual endpoints
+   - "setup_instructions": Configuration, authentication setup, installation - no endpoints
+   - "mixed": Contains both guides and API references
+
+2. **Endpoint Detection**:
+   - Count ALL unique endpoints (method + path combinations)
+   - List each endpoint with method, path, and brief description
+   - An endpoint must have: HTTP method + path + some documentation
+
+3. **Completeness Assessment**:
+   - Set is_complete_api: false if:
+     * Only 1-3 endpoints found but navigation shows more sections
+     * Documentation mentions "see also" or "other endpoints"
+     * Clear signs this is a subset (e.g., only auth endpoints)
+   - Set is_complete_api: true if:
+     * 5+ endpoints covering multiple resource types
+     * No navigation to additional endpoint pages
+     * Appears to be comprehensive documentation
+
+4. **Navigation Detection**:
+   - Look for sidebar menus, navigation links, "See also" sections
+   - Extract section names (e.g., "Payments API", "Users API")
+   - Extract URLs to other API reference pages
+   - Estimate if more endpoints exist based on navigation structure
+
+5. **User Message**:
+   - Write a clear, conversational explanation
+   - Example: "Found 1 API endpoint (POST /auth/token) from your documentation. However, this appears to be just the authentication page. The site navigation shows 15+ other endpoint sections including Payments, Workflows, and Transfers that weren't included."
+
+6. **Recommendations**:
+   - Provide specific, actionable suggestions
+   - Include exact URLs when possible
+   - Explain what each URL contains
+   - Example recommendations:
+     * "To extract the complete API, provide the main API reference URL: https://docs.example.com/reference"
+     * "Or provide specific endpoint pages you need: /reference/payments, /reference/workflows"
+     * "The pages you provided (api-credentials, mtls-configuration) are setup guides with no endpoints"
+
+7. **Special Cases**:
+   - If 0 endpoints found: Clearly state it's a guide/setup page, suggest reference URLs
+   - If multiple documents provided (=== separators): Analyze each section separately
+   - If navigation is unclear: Set has_more_endpoints: false, don't guess
+
+Be helpful, specific, and actionable. Your goal is to help users get complete API specifications."""
+
